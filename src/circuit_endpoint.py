@@ -34,7 +34,8 @@ class CircuitDataExtractor:
     
     def save_data_to_csv(self, data, file_name):
         """Save the data to a CSV file."""
-        df = pd.DataFrame(data)
+        # df = pd.DataFrame(data)
+        df = pd.json_normalize(data['MRData']['CircuitTable']['Circuits'])
         df.to_csv(file_name, index=False)
         print(f"Data saved to {file_name}")
 
