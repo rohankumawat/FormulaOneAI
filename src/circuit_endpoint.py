@@ -100,11 +100,24 @@ class CircuitDataExtractor:
         df = pd.DataFrame(data)
         df.to_csv(file_name, index=False)
         print(f"Data saved to {file_name}")
+    
+    def fetch_all_years_data(self, start_year=1950, end_year=2023):
+        all_years_data = pd.DataFrame()
+
+        for year in range(start_year, end_year + 1):
+            endpoint = f"{year}/circuits.json"  # Assuming you want JSON format
+            yearly_data = self.fetch_data(endpoint, format='json')
+            yearly_data['Year'] = year  # Add a column for the year
+
+            all_years_data = pd.concat([all_years_data, yearly_data], ignore_index=True)
+        
+        return all_years_data
 
 # Example Usage:
 base_url = "http://ergast.com/api/f1"
-# endpoint = "circuits.json"  # Note: endpoint should be "circuits.json" not the full URL
 extractor = CircuitDataExtractor(base_url=base_url)
-data = extractor.fetch_data("circuits", format='xml') # "circuits.json" for json
-print(data)
-extractor.save_data_to_csv(data, '../data/circuits.csv')
+# data = extractor.fetch_data("circuits", format='xml') # "circuits.json" for json
+# extractor.save_data_to_csv(data, '../data/circuits.csv')
+
+all_circuits_data = extractor.fetch_all_years_data()
+extractor.save_data_to_csv(all_circuits_data, '../data/all_circuits_1950_2023.csv')
