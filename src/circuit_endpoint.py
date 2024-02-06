@@ -9,39 +9,102 @@ class CircuitDataExtractor:
     def __init__(self, base_url):
         self.base_url = base_url
 
-    def fetch_data(self, endpoint):
-        """Fetch data from a specific endpoint."""
-        url = f"{self.base_url}/{endpoint}"
-        response = requests.get(url)
-        if response.status_code == 200:
-            return response
-        else:
-            raise Exception(f"Failed to fetch data: {response.status_code}")
+    def fetch_data(self, endpoint, format=None):
+        offset = 0
+        total = None
+        all_data = pd.DataFrame() # Initialize all_data as an empty DataFrame
 
-    def parse_data(self, response, format='json'):
+        while total is None or offset < total:
+            """Fetch data from a specific endpoint."""
+            url = f"{self.base_url}/{endpoint}?limit=30&offset={offset}"
+            print(f"Fetching data from: {url}")
+
+            headers = {'Accept': 'application/json'}
+            # Make a GET request to the API
+            response = requests.get(url, headers=headers)
+
+            ########---DEBUG STATEMENTS---########
+            # print(f"Status Code: {response.status_code}")
+            # print(f"Headers: {response.headers}")
+            # print(f"Text: {response.text}")
+
+            # Check the response status code
+            if response.status_code == 200:
+                parsed_data = self.parse_data(response, format)
+                # all_data.extend(parsed_data)
+                # Append parsed_data to all_data
+                all_data = pd.concat([all_data, parsed_data], ignore_index=True)
+
+                # Debugging print to inspect the structure of parsed_data
+                # print(f"Parsed Data: {parsed_data[:2]}")  # Print first 2 records to inspect
+                
+                if format == 'json': # to change the offset
+                    mr_data = response.json().get('MRData', {})
+                    limit = int(mr_data.get('limit', 0))
+                    offset += limit
+                    total = int(mr_data.get('total', 0))
+                elif format == 'xml':
+                    # Debugging: Print the first 500 characters of the XML
+                    print(response.content[:500])
+                    
+                    # Parse the XML response
+                    root = ET.fromstring(response.content)
+                    # Directly access the 'limit', 'offset', and 'total' attributes from the root
+                    limit = int(root.attrib.get('limit', 30))  # Default to 30 if not present
+                    offset = int(root.attrib.get('offset', 0))  # Default to 0 if not present
+                    total = int(root.attrib.get('total', 0))    # Default to 0 if not present
+                    parsed_data = self.parse_data(response, format)
+                    # Update the offset for the next iteration
+                    offset += limit
+            else:
+                # Print response for debugging
+                print(f"Failed to fetch data: {response.status_code}")
+                print(f"Response: {response.text}")
+                break  # or handle according to your specific needs
+            
+        return all_data
+
+    def parse_data(self, response, format=None):
         """Parse the response data and return a structured format."""
         if format == 'json':
-            return response.json()
+            circuit_data = response.json()
+            return pd.json_normalize(circuit_data["MRData"]["CircuitTable"]["Circuits"])
         elif format == 'xml':
             root = ET.fromstring(response.content)
+            ns = {'mrd': 'http://ergast.com/mrd/1.5'}  # Define the namespace
+            circuits = root.findall('.//mrd:Circuit', ns)
             data = []
-            for child in root:
-                record = {}
-                for item in child:
-                    record[item.tag] = item.text
+            for circuit in circuits:
+                circuit_id = circuit.attrib['circuitId']
+                circuit_name = circuit.find('mrd:CircuitName', ns).text
+                location = circuit.find('mrd:Location', ns)
+                latitude = location.attrib['lat']
+                longitude = location.attrib['long']
+                locality = location.find('mrd:Locality', ns).text
+                country = location.find('mrd:Country', ns).text
+                record = {
+                    'circuitId': circuit_id,
+                    'circuitName': circuit_name,
+                    'Location.lat': latitude,
+                    'Location.long': longitude,
+                    'Location.locality': locality,
+                    'Location.country': country
+                }
                 data.append(record)
-            return data
+            return pd.DataFrame(data)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
     
     def save_data_to_csv(self, data, file_name):
         """Save the data to a CSV file."""
-        # df = pd.DataFrame(data)
-        df = pd.json_normalize(data['MRData']['CircuitTable']['Circuits'])
+        df = pd.DataFrame(data)
         df.to_csv(file_name, index=False)
         print(f"Data saved to {file_name}")
 
 # Example Usage:
-base_url = "http://ergast.com/api/f1/circuits.json"
-extractor = CircuitDataExtractor(base_url)
-response = extractor.fetch_data("circuits")
-data = extractor.parse_data(response)
-extractor.save_data_to_csv(data, 'circuits.csv')
+base_url = "http://ergast.com/api/f1"
+# endpoint = "circuits.json"  # Note: endpoint should be "circuits.json" not the full URL
+extractor = CircuitDataExtractor(base_url=base_url)
+data = extractor.fetch_data("circuits", format='xml') # "circuits.json" for json
+print(data)
+extractor.save_data_to_csv(data, '../data/circuits.csv')
