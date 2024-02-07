@@ -2,3 +2,7 @@ requests
 plotly
 seaborn
 notebook
+psycopg2-binary
+python-dotenv
+sklearn
+folium
