@@ -4,5 +4,5 @@ seaborn
 notebook
 psycopg2-binary
 python-dotenv
-sklearn
+scikit-learn
 folium
