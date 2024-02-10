@@ -5,10 +5,10 @@ import json
 import pandas as pd
 import xml.etree.ElementTree as ET
 
-class DriversDataExtractor:
+class RaceScheduleDataExtractor:
     def __init__(self, base_url):
         self.base_url = base_url
-
+    
     def fetch_data(self, endpoint, format=None):
         offset = 0
         total = None
@@ -57,35 +57,33 @@ class DriversDataExtractor:
     def parse_data(self, response, format):
         """Parse the data based on the format specified."""
         if format == 'json':
-            drivers_data = response.json()
-            return pd.json_normalize(drivers_data['MRData']['DriverTable']['Drivers'])
+            race_schedule_data = response.json()
+            return pd.json_normalize(race_schedule_data['MRData']['RaceTable']['Races'])
         elif format == 'xml':
-            return self.parse_xml(response)
+            pass
         else:
-            raise ValueError(f"Unknown format: {format}")
+            raise ValueError(f"Invalid format: {format}")
     
     def save_data_to_csv(self, data, filename):
         """Save the data to a CSV file."""
         if not filename.endswith('.csv'):
-            filename += '.csv'
+            filename = f"{filename}.csv"
         data.to_csv(filename, index=False)
         print(f"Data saved to: {filename}")
     
-    def fetch_all_years_ddata(self, start_year=1950, end_year=2023):
+    def fetch_all_years_data(self, start_year=1950, end_year=2023):
         all_years_data = pd.DataFrame()
         for year in range(start_year, end_year+1):
-            endpoint = f"{year}/drivers.json" # Update the endpoint to include the year
-            year_data = self.fetch_data(endpoint, format='json')
-            year_data['year'] = year
-            all_years_data = pd.concat([all_years_data, year_data], ignore_index=True)
+            print(f"Fetching data for year: {year}")
+            data = self.fetch_data(f"{year}.json", format='json')
+            all_years_data = pd.concat([all_years_data, data], ignore_index=True)
         return all_years_data
-    
-base_url = "http://ergast.com/api/f1"
-# Initialize the DriversDataExtractor
-data_extractor = DriversDataExtractor(base_url=base_url)
-# data = data_extractor.fetch_data('drivers.json', format='json')
 
-# Fetch data for all years from 2008 to 2010
-all_years_data = data_extractor.fetch_all_years_ddata()
+# Define the base URL for the Ergast API
+base_url = "https://ergast.com/api/f1"
+# Initialize the RaceScheduleDataExtractor
+race_schedule_extractor = RaceScheduleDataExtractor(base_url=base_url)
+# Fetch data
+all_year_race_schedule_data = race_schedule_extractor.fetch_all_years_data()
 # Save the data to a CSV file
-data_extractor.save_data_to_csv(all_years_data, '../data/all_drivers_1950_2023.csv')
+race_schedule_extractor.save_data_to_csv(data=all_year_race_schedule_data, filename='../data/all_race_schedule_data.csv')
